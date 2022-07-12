@@ -1,0 +1,202 @@
+import json
+import traceback
+import base64
+from os import listdir, system, name
+from tkinter import *
+
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.fernet import Fernet
+
+PASSWORDS_FILE = "password.encrypted"
+PASSWORDS_FILE_BACKUP = "password.encrypted.backup"
+
+
+def tk_multiline_input( initial_text = "" ):
+    tk_multiline_input.tkpassword = initial_text # this name so it can be accessed in _save function
+    
+    window = Tk()
+    window.title("enter the password to save")
+    window.geometry("500x300")
+
+    textbox = Text(window, width = 100, height = 10)
+    textbox.pack()
+
+    # if password already saved fill input
+    if tk_multiline_input.tkpassword:
+        textbox.insert(1.0, tk_multiline_input.tkpassword)
+
+    def _save():
+        tk_multiline_input.tkpassword = textbox.get(1.0, END)
+        window.destroy()
+    
+    Button(window, text = "submit", command = _save).pack()
+
+    window.mainloop()
+    return tk_multiline_input.tkpassword.removesuffix("\n")
+
+
+class PasswordManager():
+    def __init__(self, password):
+        self.key = self._get_key(password)
+
+        # create file if not existent
+        if PASSWORDS_FILE not in listdir():
+            self.save_passwords({}) # add empty dict to set the password inputed first as key
+            print("created passwords file")
+
+    def _get_key(self, password: str) -> bytes:
+        # print(os.urandom(16))
+        salt = b"\xde\xd1\xcc\xec\xdem'\x05\xfd\x9d\x8de\\\xec\x03\xc5"
+
+        kdf = PBKDF2HMAC(
+            algorithm = hashes.SHA256(),
+            length = 32,
+            salt = salt,
+            iterations = 100000,
+            backend = default_backend
+        )
+
+        key = base64.urlsafe_b64encode(kdf.derive(password.encode())) # can only use kdf once
+        
+        return key
+    
+    def set_key(self):
+        self.key = self._get_key(input("re-insert password to generate the decryption key >>> "))
+
+    
+
+    def decrypt_message(self, encrypted: bytes):
+        f = Fernet(self.key)
+
+        decrypted = f.decrypt(encrypted)
+        return decrypted.decode()
+    
+    def encrypt(self, new_passwords_dict: dict):
+        # encode message
+        encoded = json.dumps(new_passwords_dict).encode()
+
+        #encrypt message
+        f = Fernet(self.key)
+        encrypted = f.encrypt(encoded)
+
+        return encrypted
+    
+
+    def load_passwords(self):
+            
+        with open(PASSWORDS_FILE, "rb") as encryptedfile:
+            DATA = encryptedfile.read()
+        
+        decrypted = self.decrypt_message(DATA)
+        return json.loads(decrypted)
+
+    def save_passwords(self, passwords: dict):
+        with open(PASSWORDS_FILE, "wb") as encryptedfile:
+            encryptedfile.write(self.encrypt(passwords))
+    
+    def create_backup(self):
+        with open(PASSWORDS_FILE_BACKUP, "wb") as encryptedfile:
+            encryptedfile.write(self.encrypt(self.load_passwords()))
+            
+        print(f"backupped data to '{PASSWORDS_FILE_BACKUP}'")
+
+    def add_new_password(self):
+        # add to end of passwords -> {app: password} if app not in passwords
+        
+        passwords = self.load_passwords()
+
+        app = input("insert name of the new app >>> ")
+        if app in passwords.keys():
+            print(f"password of '{app}' already saved")
+            return
+
+        print("insert password on popup window")
+        password = tk_multiline_input()
+        passwords[app] = password
+
+        self.save_passwords(passwords)
+    
+    def modify_password(self):
+        # give choice to append at the end or replace all content
+        passwords = self.load_passwords()
+
+        app = input("insert name of the app to modify >>> ")
+        if app not in passwords.keys():
+            print(f"password of '{app}' not found")
+            return
+
+        password = tk_multiline_input(initial_text = passwords[app])
+        passwords[app] = password
+
+        self.save_passwords(passwords)
+        
+    def remove_password(self):
+        passwords = self.load_passwords()
+
+        app = input("insert name of the app to remove >>> ")
+        if app not in passwords.keys():
+            print(f"password of '{app}' not found")
+            return
+
+        if input(f"confirm the removation of '{app}'? y/n >>> ").lower() in ["y", "yes"]:
+            del passwords[app]
+            print("app removed")
+
+            self.save_passwords(passwords)
+        else: print("process cancelled")
+    
+    # print data
+    def print_available_apps(self):
+        print("".join([ f"{n} - {app}\n" for n, app in enumerate(self.load_passwords().keys()) ]))
+    
+    def get_app_password(self):
+        print(self.load_passwords().get(input("search for an app >>> "), "app not found"))
+
+
+
+
+# START PROGRAM
+
+pm = PasswordManager(input("insert password to generate the decryption key >>> "))
+
+actions = {
+    "get all available apps": pm.print_available_apps,
+    "visualize a app's password": pm.get_app_password,
+    "add a new password": pm.add_new_password,
+    "modify a password": pm.modify_password,
+    "remove a password": pm.remove_password,
+    "create a backup": pm.create_backup,
+    "replace password data with backup": lambda: print("TODO"), # TODO
+    "re-insert password to generate the decryption key": pm.set_key,
+    "quit": exit
+}
+
+while True:
+    try:
+        # clear screen
+        system("cls" if name == "nt" else "clear")
+
+        # print actions
+        print("\n".join([ f"{n + 1}) {action}" for n, action in enumerate(actions.keys())]))
+
+        choice = input(">>> ")
+        if not choice:
+            continue
+
+        elif not choice.isdecimal():
+            print("please enter a number")
+
+        elif not 0 <= int(choice) <= len(actions.keys()):
+            print("not a suitable option")
+
+        else:
+            actions[list(actions.keys())[int(choice) - 1]]() # call function from actions dict
+                
+        system("pause")
+    
+    except Exception:
+        print("\n----- encountered an error -----")
+        traceback.print_exc()
+        input("-"*32)
