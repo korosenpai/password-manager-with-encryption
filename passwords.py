@@ -3,6 +3,8 @@ import traceback
 import base64
 from os import listdir, system, name
 from tkinter import *
+import string
+import random
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
@@ -20,17 +22,22 @@ def tk_multiline_input( initial_text = "" ):
     window.title("enter the password to save")
     window.geometry("500x300")
 
-    textbox = Text(window, width = 100, height = 10)
+    textbox = Text(window, width = 100, height = 15)
     textbox.pack()
 
     # if password already saved fill input
     if tk_multiline_input.tkpassword:
         textbox.insert(1.0, tk_multiline_input.tkpassword)
 
+    def _generate_random_passw():
+        characters = string.ascii_letters + string.punctuation + string.digits
+        password = "".join(random.choice(characters) for x in range(random.randint(15, 20)))
+        textbox.insert(END, f"password: {password}\n")
+    Button(window, text = "generate random", command = _generate_random_passw).pack()
+
     def _save():
         tk_multiline_input.tkpassword = textbox.get(1.0, END)
         window.destroy()
-    
     Button(window, text = "submit", command = _save).pack()
 
     window.mainloop()
