@@ -1,10 +1,11 @@
 import json
 import traceback
 import base64
-from os import listdir, system, name
+from os import listdir, remove, system, name
 from tkinter import *
 import string
 import random
+from shutil import copyfile
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
@@ -108,6 +109,23 @@ class PasswordManager():
             encryptedfile.write(self.encrypt(self.load_passwords()))
             
         print(f"backupped data to '{PASSWORDS_FILE_BACKUP}'")
+    
+    def load_backup(self):
+        if input("confirm choice? y/n >>> ").lower() != "y":
+            print("process cancelled")
+            return
+
+        if PASSWORDS_FILE_BACKUP not in listdir():
+            print("backup file not found")
+            return
+        
+        if PASSWORDS_FILE in listdir():
+            remove(PASSWORDS_FILE)
+        
+        copyfile(PASSWORDS_FILE_BACKUP, PASSWORDS_FILE)
+        print("replaced data with backup")
+        
+
 
     def add_new_password(self):
         # add to end of passwords -> {app: password} if app not in passwords
@@ -175,7 +193,7 @@ actions = {
     "modify a password": pm.modify_password,
     "remove a password": pm.remove_password,
     "create a backup": pm.create_backup,
-    "replace password data with backup": lambda: print("TODO"), # TODO
+    "replace password data with backup": pm.load_backup,
     "re-insert password to generate the decryption key": pm.set_key,
     "quit": exit
 }
