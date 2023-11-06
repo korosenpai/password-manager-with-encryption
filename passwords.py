@@ -6,6 +6,7 @@ from tkinter import *
 import string
 import random
 from shutil import copyfile
+from getpass import getpass
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
@@ -21,7 +22,7 @@ def tk_multiline_input( initial_text = "" ):
     
     window = Tk()
     window.title("enter the password to save")
-    window.geometry("500x300")
+    window.geometry("500x330")
 
     textbox = Text(window, width = 100, height = 15)
     textbox.pack()
@@ -63,7 +64,7 @@ class PasswordManager():
             length = 32,
             salt = salt,
             iterations = 100000,
-            backend = default_backend
+            backend = default_backend()
         )
 
         key = base64.urlsafe_b64encode(kdf.derive(password.encode())) # can only use kdf once
@@ -71,7 +72,7 @@ class PasswordManager():
         return key
     
     def set_key(self):
-        self.key = self._get_key(input("re-insert password to generate the decryption key >>> "))
+        self.key = self._get_key(getpass("re-insert password to generate the decryption key >>> "))
 
     
 
@@ -178,11 +179,23 @@ class PasswordManager():
     
     def get_app_password(self):
         print(self.load_passwords().get(input("search for an app >>> "), "app not found"))
+    
+    def create_unencrypted_file(self):
+        with open("unencrypted.json", "w") as unencryptedfile:
+            json.dump(self.load_passwords(), unencryptedfile, indent = 4)
+        print("created file 'unencrypted.json'")
+    
+    def load_from_json(self):
+        print("to be sure create a backup")
+        with open(input("json file path >> "), "r") as jsonfile:
+            self.save_passwords(json.load(jsonfile))
 
-
+        print("replaced passwords file correctly.")
 
 
 # START PROGRAM
+#TODO fix input -> replace with getpass, getpass does not support non unicode charfacters
+# in video of neuralnine try using second method
 
 pm = PasswordManager(input("insert password to generate the decryption key >>> "))
 
@@ -194,6 +207,8 @@ actions = {
     "remove a password": pm.remove_password,
     "create a backup": pm.create_backup,
     "replace password data with backup": pm.load_backup,
+    "create unencrypted file": pm.create_unencrypted_file,
+    "replace password data with json file data": pm.load_from_json,
     "re-insert password to generate the decryption key": pm.set_key,
     "quit": exit
 }
@@ -219,7 +234,7 @@ while True:
         else:
             actions[list(actions.keys())[int(choice) - 1]]() # call function from actions dict
                 
-        system("pause")
+        input("\npress enter to continue...")
     
     except Exception:
         print("\n----- encountered an error -----")
